@@ -21,7 +21,7 @@ try {
   await writeFile(
     join(temp, 'consumer.mjs'),
     [
-      "import { ImageClient, listImageModels } from '@imagery/core';",
+      "import { ImageClient, listImageModels } from '@rishabhbothra/imagery';",
       "const client = new ImageClient({ defaultProvider: 'mock', defaultModel: 'mock-image' });",
       "const response = await client.images.generate({ prompt: 'fixture' });",
       "if (response.images.length !== 1) throw new Error('mock image generation failed');",
@@ -33,7 +33,7 @@ try {
   await writeFile(
     join(temp, 'consumer.ts'),
     [
-      "import { ImageClient, type ImageResponse } from '@imagery/core';",
+      "import { ImageClient, type ImageResponse } from '@rishabhbothra/imagery';",
       "const client = new ImageClient({ defaultProvider: 'mock', defaultModel: 'mock-image' });",
       "const response: Promise<ImageResponse> = client.images.generate({ prompt: 'types' });",
       'void response;',

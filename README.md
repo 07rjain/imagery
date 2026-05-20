@@ -20,7 +20,7 @@ Provider differences are visible by design. OpenAI and Google do not expose the 
 ## Install
 
 ```sh
-pnpm add @imagery/core
+pnpm add @rishabhbothra/imagery
 ```
 
 The package is ESM-first and requires Node.js 20 or newer.
@@ -38,7 +38,7 @@ https://07rjain.github.io/imagery/api/
 ## Quickstart
 
 ```ts
-import { ImageClient } from '@imagery/core';
+import { ImageClient } from '@rishabhbothra/imagery';
 
 const client = ImageClient.fromEnv({
   defaultProvider: 'openai',

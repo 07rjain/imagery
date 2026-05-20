@@ -1,10 +1,21 @@
 {
-  "name": "@imagery/core",
+  "name": "@rishabhbothra/imagery",
   "version": "0.1.0",
   "description": "Provider-agnostic TypeScript image generation library for OpenAI GPT Image and Google Gemini image models.",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.22.0",
+  "homepage": "https://07rjain.github.io/imagery/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/07rjain/imagery.git"
+  },
+  "bugs": {
+    "url": "https://github.com/07rjain/imagery/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "keywords": [
     "image-generation",

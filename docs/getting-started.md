@@ -1,7 +1,7 @@
 # Getting Started
 
 ```ts
-import { ImageClient } from '@imagery/core';
+import { ImageClient } from '@rishabhbothra/imagery';
 
 const client = ImageClient.fromEnv({
   defaultProvider: 'openai',
