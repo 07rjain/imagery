@@ -18,6 +18,16 @@ pnpm add @imagery/core
 
 The package is ESM-first and requires Node.js 20 or newer.
 
+## Documentation
+
+The hosted documentation is published with GitHub Pages:
+
+https://07rjain.github.io/imagery/
+
+API reference:
+
+https://07rjain.github.io/imagery/api/
+
 ## Quickstart
 
 ```ts
