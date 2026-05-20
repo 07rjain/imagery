@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tgz
+
+# Docs output and caches
+.vitepress/cache/
+.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Generated image artifacts and scratch space
+live-artifacts/
+realtest/
+tmp/
+
+# System files
+.DS_Store

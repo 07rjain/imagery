@@ -1,0 +1,1139 @@
+# Image Library PRD
+
+Date: 2026-05-20
+
+Status: Planning document for a separate future project. This file is intentionally kept at repository root and should not be published with the current `unified-llm-client` docs.
+
+## 1. Executive Summary
+
+Build an open-source, provider-agnostic TypeScript image generation library for three initial models only:
+
+| Provider | Product name | Model ID |
+|---|---|---|
+| OpenAI | GPT Image 2 | `gpt-image-2` |
+| Google | Nano Banana Pro / Gemini 3 Pro Image | `gemini-3-pro-image-preview` |
+| Google | Nano Banana / Gemini 3.1 Flash Image | `gemini-3.1-flash-image-preview` |
+
+The first product surface must support:
+
+- Text-to-image generation.
+- Image-to-image editing with one or more reference images.
+- Inpainting where the provider supports masks, plus semantic inpainting where the provider supports prompt-guided edits.
+- Explicit provider options for documented moderation/safety controls.
+- Cross-provider fallback with capability-aware routing.
+- Strong typed errors, retry, timeout, usage, cost, and request metadata.
+- Production-grade docs that can be published through GitHub Pages.
+- Unit, integration, contract, and opt-in live tests before public release.
+
+The key design decision is to expose image operations as explicit methods, not as a chat/completion abstraction:
+
+```ts
+const generated = await client.images.generate({
+  prompt: 'A product hero shot of a matte black water bottle on sandstone',
+  model: 'gpt-image-2',
+  provider: 'openai',
+  size: '1024x1024',
+  quality: 'medium',
+});
+
+const edited = await client.images.edit({
+  prompt: 'Keep the same bottle, change the background to a rainy Tokyo street',
+  inputImages: [{ data: imageBytes, mediaType: 'image/png' }],
+  model: 'gemini-3.1-flash-image-preview',
+  provider: 'google',
+});
+
+const inpainted = await client.images.inpaint({
+  prompt: 'Replace the sofa with a vintage brown leather chesterfield',
+  image: { data: roomBytes, mediaType: 'image/png' },
+  mask: { data: maskBytes, mediaType: 'image/png' },
+  model: 'gpt-image-2',
+  provider: 'openai',
+});
+```
+
+## 2. Primary Sources Checked
+
+OpenAI:
+
+- OpenAI Image generation guide: https://developers.openai.com/api/docs/guides/image-generation
+- The guide describes Image API generation and edit endpoints and names `gpt-image-2` in current examples.
+- The guide documents reference-image edits, mask-based edits, size/quality/output controls, streaming partial images, costs, and `moderation`.
+- Masked edits require compatible image/mask inputs; OpenAI notes mask alpha-channel behavior and format/size constraints.
+- OpenAI documents `moderation: "auto"` and `moderation: "low"` for GPT Image models. This is a documented moderation setting, not a hidden bypass.
+
+Google:
+
+- Gemini 3 Pro Image page: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-pro-image
+- Gemini 3.1 Flash Image page: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-1-flash-image
+- Google lists model IDs `gemini-3-pro-image-preview` and `gemini-3.1-flash-image-preview`.
+- Both model pages describe text and image inputs, text and image outputs, image generation, edit images, interleaved images/text, and multi-turn image editing.
+- Google lists `gemini-3-pro-image-preview` as public preview, released 2025-11-20, with 65,536 input tokens and 32,768 output tokens.
+- Google lists `gemini-3.1-flash-image-preview` as public preview, released 2026-02-26, with 131,072 input tokens and 32,768 output tokens.
+- Google lists up to 14 images per prompt, image MIME types including PNG/JPEG/WebP/HEIC/HEIF, and model-specific aspect ratios.
+- Gemini API safety settings docs: https://ai.google.dev/gemini-api/docs/safety-settings
+- Google safety docs say request safety settings can be adjusted per request, include `OFF` and `BLOCK_NONE`, and also state core harms such as child safety are always blocked and cannot be adjusted.
+
+## 3. Scope Lock
+
+V1 supported model registry:
+
+- `gpt-image-2`
+- `gemini-3-pro-image-preview`
+- `gemini-3.1-flash-image-preview`
+
+V1 excluded models:
+
+- DALL-E models.
+- `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`.
+- Gemini 2.x image models.
+- Imagen models.
+- Video models, audio models, and local diffusion models.
+
+Reasoning:
+
+- The API should be small, well-tested, and understandable at launch.
+- Fallback should happen between the three supported models, not by silently introducing older or unrelated models.
+- Future models can be added through registry updates and minor releases after capability and live-test validation.
+
+## 4. Product Goals
+
+### 4.1 User Goals
+
+- Use one library to call OpenAI or Google for common image workflows.
+- Switch provider/model without rewriting app-level image pipeline code.
+- Generate images from text prompts.
+- Edit existing images using one or more reference images.
+- Inpaint regions using a mask when available, or use prompt-guided semantic inpainting when only that is available.
+- Receive image bytes plus metadata, not files written by the library.
+- Track cost, latency, provider request IDs, model, prompt revision, safety outcomes, fallback path, and output dimensions.
+- Build production apps without guessing which provider options are safe or unsupported.
+- Read complete public docs on GitHub Pages.
+
+### 4.2 Library Goals
+
+- Keep a small canonical API.
+- Avoid abstracting away important provider differences.
+- Keep image storage app-owned.
+- Use provider-specific adapters internally.
+- Make unsupported capability combinations fail early with clear errors.
+- Provide a static model registry with capability metadata.
+- Provide deterministic mocks for tests.
+- Provide opt-in live-test scripts for real API validation.
+- Keep docs, examples, and API reference generated and checked in CI.
+
+### 4.3 Non-Goals For V1
+
+- No video generation.
+- No audio/video inputs.
+- No built-in image hosting/CDN.
+- No automatic durable storage.
+- No Photoshop-like local image manipulation beyond optional validation utilities.
+- No automatic face/identity verification.
+- No web UI.
+- No hidden moderation bypass.
+- No automatic relaxation of provider safety settings.
+- No long-running job queue in the core library.
+- No automatic prompt rewriting outside provider-reported revised prompts.
+
+## 5. Provider Reality And Capability Mapping
+
+### 5.1 OpenAI `gpt-image-2`
+
+Recommended v1 OpenAI API path:
+
+- Use the Image API for stateless `generate`, `edit`, and `inpaint`.
+- Use generation endpoint for text-to-image.
+- Use edit endpoint for image-to-image and mask-based inpainting.
+- Keep Responses API out of v1 unless OpenAI changes Image API availability for `gpt-image-2`.
+
+Capability notes:
+
+- Text-to-image: supported.
+- Image-to-image: supported through edits with one or more input images.
+- Inpainting: supported through edits with image + mask.
+- Streaming: supported through partial image events where available.
+- Output controls: size, quality, format, compression, background where model supports it.
+- Moderation control: `moderation?: "auto" | "low"`.
+- Transparent background: do not enable by default for `gpt-image-2`; validate against current docs at implementation time.
+- Cost: image output cost depends on output image tokens/size/quality; expose as estimated unless response gives billable details.
+
+Validation requirements:
+
+- Reject missing prompt.
+- Reject edit without `inputImages`.
+- Reject inpaint without `image`.
+- Reject pixel-mask inpaint if mask dimensions/media type cannot be validated when validation is enabled.
+- Reject transparent background if model metadata says unsupported.
+- Reject unsupported output sizes before API call where constraints are known.
+
+### 5.2 Google `gemini-3-pro-image-preview`
+
+Product name: Nano Banana Pro / Gemini 3 Pro Image.
+
+Recommended v1 Google API path:
+
+- Use Gemini `generateContent`.
+- Send prompt text plus inline image parts for image-to-image.
+- Parse inline image outputs from response parts.
+- Preserve text parts as provider messages, warnings, or revised prompt metadata.
+
+Capability notes:
+
+- Text-to-image: supported.
+- Image-to-image: supported.
+- Multi-turn editing: supported by provider, but v1 can remain stateless and add conversation-style editing later.
+- Inpainting: semantic / prompt-guided inpainting. Do not present it as exact pixel-mask replacement unless Google exposes a formal mask input for the selected endpoint.
+- Inputs/outputs: text and images in, text and image out.
+- Technical constraints from current Google docs: up to 14 images per prompt, 65,536 input tokens, 32,768 output tokens, and image MIME types PNG/JPEG/WebP/HEIC/HEIF.
+- Best use: complex image generation/editing, professional assets, higher instruction accuracy.
+
+### 5.3 Google `gemini-3.1-flash-image-preview`
+
+Product name: Nano Banana / Gemini 3.1 Flash Image.
+
+Recommended v1 Google API path:
+
+- Same adapter as Gemini 3 Pro Image through `generateContent`.
+- Use as the default Google low-latency/lower-cost image model.
+
+Capability notes:
+
+- Text-to-image: supported.
+- Image-to-image: supported.
+- Multi-turn editing: supported by provider, but v1 can remain stateless.
+- Inpainting: semantic / prompt-guided inpainting.
+- Inputs/outputs: text and images in, text and image out.
+- Technical constraints from current Google docs: up to 14 images per prompt, 131,072 input tokens, 32,768 output tokens, and image MIME types PNG/JPEG/WebP/HEIC/HEIF.
+- Google states image generation consumes up to 2520 tokens per generated image.
+- Best use: high-volume image generation/editing with better price/performance.
+
+## 6. Recommended API Surface
+
+Expose a namespaced client:
+
+```ts
+const client = ImageClient.fromEnv({
+  defaultProvider: 'openai',
+  defaultModel: 'gpt-image-2',
+});
+
+await client.images.generate(...);
+await client.images.edit(...);
+await client.images.inpaint(...);
+```
+
+Core operations:
+
+```ts
+interface ImageApi {
+  generate(options: ImageGenerateOptions): Promise<ImageResponse>;
+  edit(options: ImageEditOptions): Promise<ImageResponse>;
+  inpaint(options: ImageInpaintOptions): Promise<ImageResponse>;
+}
+```
+
+### 6.1 Canonical Types
+
+```ts
+type ImageProvider = 'openai' | 'google' | 'mock';
+
+type ImageOperation = 'generate' | 'edit' | 'inpaint';
+
+type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
+
+type ImageQuality = 'auto' | 'low' | 'medium' | 'high';
+
+type SafetyMode = 'default' | 'relaxed' | 'provider-custom';
+
+interface ImageInput {
+  data: Uint8Array | ArrayBuffer | Blob | string; // string is base64 or data URL
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif' | string;
+  filename?: string;
+  role?: 'reference' | 'base' | 'style' | 'mask';
+}
+
+interface ImageGenerateOptions {
+  prompt: string;
+  model?: string;
+  provider?: ImageProvider;
+  n?: number;
+  size?: ImageSize;
+  aspectRatio?: ImageAspectRatio;
+  quality?: ImageQuality;
+  outputFormat?: ImageOutputFormat;
+  outputCompression?: number;
+  background?: 'auto' | 'opaque' | 'transparent';
+  seed?: number;
+  safetyMode?: SafetyMode;
+  signal?: AbortSignal;
+  tenantId?: string;
+  userId?: string;
+  projectId?: string;
+  fallback?: ImageFallbackOptions;
+  providerOptions?: ImageProviderOptions;
+}
+
+interface ImageEditOptions extends Omit<ImageGenerateOptions, 'n'> {
+  inputImages: ImageInput[];
+  n?: number;
+  preserveFidelity?: 'auto' | 'low' | 'high';
+}
+
+interface ImageInpaintOptions extends Omit<ImageGenerateOptions, 'n'> {
+  image: ImageInput;
+  mask?: ImageInput;
+  semanticMask?: string;
+  n?: number;
+}
+
+interface ImageResponse {
+  images: GeneratedImage[];
+  model: string;
+  provider: ImageProvider;
+  operation: ImageOperation;
+  usage?: ImageUsageMetrics;
+  requestId?: string;
+  warnings?: ImageWarning[];
+  revisedPrompt?: string;
+  providerText?: string[];
+  safety?: ImageSafetyResult;
+  fallbackTrace?: ImageFallbackTrace[];
+  raw?: unknown;
+}
+
+interface GeneratedImage {
+  data: Uint8Array;
+  mediaType: string;
+  width?: number;
+  height?: number;
+  format?: ImageOutputFormat | string;
+  seed?: number;
+  index: number;
+  providerImageId?: string;
+  finishReason?: string;
+  safety?: ImageSafetyResult;
+}
+```
+
+### 6.2 Provider Options
+
+Do not force all provider parameters into the canonical surface. Use provider options for advanced or unstable fields:
+
+```ts
+type GoogleSafetyThreshold =
+  | 'OFF'
+  | 'BLOCK_NONE'
+  | 'BLOCK_ONLY_HIGH'
+  | 'BLOCK_MEDIUM_AND_ABOVE'
+  | 'BLOCK_LOW_AND_ABOVE'
+  | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED';
+
+type GoogleSafetyCategory =
+  | 'HARM_CATEGORY_HARASSMENT'
+  | 'HARM_CATEGORY_HATE_SPEECH'
+  | 'HARM_CATEGORY_SEXUALLY_EXPLICIT'
+  | 'HARM_CATEGORY_DANGEROUS_CONTENT';
+
+interface ImageProviderOptions {
+  openai?: {
+    moderation?: 'auto' | 'low';
+    partialImages?: number;
+    raw?: Record<string, unknown>;
+  };
+  google?: {
+    responseModalities?: Array<'TEXT' | 'IMAGE'>;
+    imageSize?: '1K' | '2K' | '4K';
+    safetySettings?: Array<{
+      category: GoogleSafetyCategory;
+      threshold: GoogleSafetyThreshold;
+    }>;
+    allowLessRestrictiveSafetySettings?: boolean;
+    raw?: Record<string, unknown>;
+  };
+}
+```
+
+Rules:
+
+- Provider options are allowed, but core behavior should remain understandable without them.
+- Safety relaxation is never automatic.
+- OpenAI `moderation: "low"` is allowed only when the caller explicitly sets it.
+- Google `OFF` or `BLOCK_NONE` is allowed only when `allowLessRestrictiveSafetySettings: true` is also set.
+- The library must record safety overrides in response metadata and usage events.
+- The library must never retry a safety-blocked prompt with weaker safety settings.
+
+## 7. Model Registry
+
+Create a static model registry from day one.
+
+```ts
+interface ImageModelInfo {
+  id: string;
+  provider: ImageProvider;
+  displayName: string;
+  aliases?: string[];
+  family: 'openai-gpt-image' | 'google-gemini-image';
+  operations: ImageOperation[];
+  supportsMasks: boolean;
+  supportsSemanticInpaint: boolean;
+  supportsReferenceImages: boolean;
+  supportsMultipleReferenceImages: boolean;
+  supportsStreaming: boolean;
+  supportsTransparentBackground: boolean;
+  supportedOutputFormats: ImageOutputFormat[];
+  supportedSizes?: ImageSize[];
+  supportedAspectRatios?: ImageAspectRatio[];
+  maxInputImages?: number;
+  maxInputBytes?: number;
+  maxOutputImages?: number;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  pricing?: ImagePricing;
+  releaseStage?: 'preview' | 'stable';
+  sourceUrl: string;
+  lastUpdated: string;
+}
+```
+
+Initial registry:
+
+```ts
+[
+  {
+    id: 'gpt-image-2',
+    provider: 'openai',
+    displayName: 'GPT Image 2',
+    family: 'openai-gpt-image',
+    operations: ['generate', 'edit', 'inpaint'],
+    supportsMasks: true,
+    supportsSemanticInpaint: true,
+    supportsReferenceImages: true,
+    supportsMultipleReferenceImages: true,
+    supportsStreaming: true,
+    supportsTransparentBackground: false,
+    supportedOutputFormats: ['png', 'jpeg', 'webp'],
+    sourceUrl: 'https://developers.openai.com/api/docs/guides/image-generation',
+    lastUpdated: '2026-05-20',
+  },
+  {
+    id: 'gemini-3-pro-image-preview',
+    provider: 'google',
+    displayName: 'Nano Banana Pro / Gemini 3 Pro Image',
+    aliases: ['nano-banana-pro'],
+    family: 'google-gemini-image',
+    operations: ['generate', 'edit', 'inpaint'],
+    supportsMasks: false,
+    supportsSemanticInpaint: true,
+    supportsReferenceImages: true,
+    supportsMultipleReferenceImages: true,
+    supportsStreaming: false,
+    supportsTransparentBackground: false,
+    supportedOutputFormats: ['png', 'jpeg', 'webp'],
+    maxInputImages: 14,
+    inputTokenLimit: 65536,
+    outputTokenLimit: 32768,
+    releaseStage: 'preview',
+    sourceUrl: 'https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-pro-image',
+    lastUpdated: '2026-05-20',
+  },
+  {
+    id: 'gemini-3.1-flash-image-preview',
+    provider: 'google',
+    displayName: 'Nano Banana / Gemini 3.1 Flash Image',
+    aliases: ['nano-banana'],
+    family: 'google-gemini-image',
+    operations: ['generate', 'edit', 'inpaint'],
+    supportsMasks: false,
+    supportsSemanticInpaint: true,
+    supportsReferenceImages: true,
+    supportsMultipleReferenceImages: true,
+    supportsStreaming: false,
+    supportsTransparentBackground: false,
+    supportedOutputFormats: ['png', 'jpeg', 'webp'],
+    maxInputImages: 14,
+    inputTokenLimit: 131072,
+    outputTokenLimit: 32768,
+    releaseStage: 'preview',
+    sourceUrl: 'https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-1-flash-image',
+    lastUpdated: '2026-05-20',
+  },
+]
+```
+
+Important: keep live model discovery separate from the static registry. Provider model lists often do not include enough endpoint, pricing, mask, editing, or output-format metadata to safely auto-enable models.
+
+## 8. Provider Adapter Design
+
+### 8.1 OpenAI Adapter
+
+Use:
+
+- `images.generate()` / `POST /v1/images/generations` for text-to-image.
+- `images.edit()` / `POST /v1/images/edits` for image-to-image and inpaint.
+
+Request translation:
+
+- JSON for generation.
+- Multipart form data for edits/inpainting.
+- `image[]` array for multiple reference images where supported.
+- `mask` field for mask-based inpainting.
+- Decode base64 outputs into `Uint8Array`.
+- Capture request ID from response headers when available.
+- Capture `revised_prompt` when returned.
+
+Validation:
+
+- Prompt is required.
+- For edit, `inputImages.length > 0`.
+- For inpaint with mask, `image` and `mask` should have same MIME type and dimensions if dimension validation is enabled.
+- Mask should be PNG/RGBA or otherwise alpha-capable.
+- Transparent background should fail early unless model metadata says supported.
+
+### 8.2 Google Gemini Image Adapter
+
+Use:
+
+- `models.generateContent` / `:generateContent`.
+- Inline image parts for image-to-image.
+- Prompt-only generation for text-to-image.
+- For inpainting, use semantic prompt instructions unless Google exposes a formal mask field for the selected model/API.
+
+Request translation:
+
+- `contents.parts` includes text plus inline image data.
+- `generationConfig.responseModalities` or equivalent config should include `IMAGE` for image output.
+- `imageConfig`/response image settings map from canonical size/aspect ratio where the active Google SDK/API supports it.
+- Parse `candidates[].content.parts[]`.
+- Text parts become `providerText`, `warnings`, or `revisedPrompt` metadata.
+- Inline image parts become `GeneratedImage`.
+
+Validation:
+
+- Reject explicit pixel-mask inpainting for Google unless a documented mask parameter exists for the selected model.
+- Allow `semanticMask` for Google inpaint.
+- Enforce max input image count based on model metadata.
+- Make it clear Google may return text plus image, image only, or text-only failure details.
+
+## 9. Inpainting Strategy
+
+Do not pretend every provider has the same inpainting behavior.
+
+Canonical inpaint modes:
+
+```ts
+type InpaintMode = 'mask' | 'semantic';
+```
+
+OpenAI:
+
+- Supports `mask` mode through image edits.
+- Can also support semantic inpaint by turning `semanticMask` into prompt instructions.
+
+Google:
+
+- Supports semantic inpaint through text instructions and reference images.
+- Does not get `supportsMasks: true` until a formal mask field is verified for `gemini-3-pro-image-preview` or `gemini-3.1-flash-image-preview`.
+
+Error behavior:
+
+- If user passes `mask` to a model without mask support, throw `ImageCapabilityError`.
+- If user passes `semanticMask`, route only to models with semantic inpaint support.
+- If fallback would downgrade `mask` to `semantic`, require `allowCapabilityDowngrade: true`.
+
+## 10. Moderation And Safety Controls
+
+The library should expose documented provider controls, but must not create hidden bypass behavior.
+
+Defaults:
+
+- Use provider default safety/moderation settings.
+- Do not silently relax filters.
+- Do not fallback from a safety-blocked provider to another provider unless the caller explicitly enables `fallback.onSafetyError`.
+- Do not retry with weaker safety settings.
+
+OpenAI:
+
+- Expose `providerOptions.openai.moderation`.
+- Valid values: `auto`, `low`.
+- `low` must be treated as an explicit less-restrictive setting and recorded in metadata.
+
+Google:
+
+- Expose `providerOptions.google.safetySettings`.
+- Allow thresholds documented by Gemini API, including `OFF` and `BLOCK_NONE`.
+- Require `allowLessRestrictiveSafetySettings: true` when `OFF` or `BLOCK_NONE` is present.
+- Preserve `promptFeedback`, `finishReason`, and `safetyRatings` when returned.
+- Document that core harms are always blocked and cannot be adjusted.
+
+Audit metadata:
+
+```ts
+interface ImageSafetyResult {
+  blocked?: boolean;
+  providerReason?: string;
+  categories?: Array<{
+    category: string;
+    probability?: string;
+    threshold?: string;
+    blocked?: boolean;
+  }>;
+  overrides?: Array<{
+    provider: ImageProvider;
+    setting: string;
+    value: string;
+  }>;
+}
+```
+
+## 11. Fallback Strategy
+
+Fallback should be explicit, capability-aware, and auditable.
+
+```ts
+interface ImageFallbackOptions {
+  enabled?: boolean;
+  candidates?: Array<{
+    provider: ImageProvider;
+    model: string;
+  }>;
+  onRateLimit?: boolean;
+  onTimeout?: boolean;
+  onProviderError?: boolean;
+  onSafetyError?: boolean;
+  allowCapabilityDowngrade?: boolean;
+}
+```
+
+Default fallback behavior:
+
+- Disabled unless configured at client or request level.
+- Allowed for retryable provider/network/rate-limit/timeout errors.
+- Not allowed for safety errors by default.
+- Not allowed when the fallback model lacks required capabilities.
+- Not allowed to downgrade OpenAI mask inpaint to Google semantic inpaint unless explicitly configured.
+
+Recommended fallback routes:
+
+- Generation: `gpt-image-2` -> `gemini-3.1-flash-image-preview` -> `gemini-3-pro-image-preview`.
+- Complex Google generation/editing: `gemini-3-pro-image-preview` -> `gemini-3.1-flash-image-preview`.
+- High-volume Google generation/editing: `gemini-3.1-flash-image-preview` -> `gemini-3-pro-image-preview`.
+- Masked inpaint: stay on `gpt-image-2` unless capability downgrade is explicitly accepted.
+
+Response metadata:
+
+```ts
+interface ImageFallbackTrace {
+  provider: ImageProvider;
+  model: string;
+  attemptedAt: string;
+  outcome: 'success' | 'failed' | 'skipped';
+  errorType?: string;
+  reason?: string;
+}
+```
+
+## 12. Image Input Handling
+
+Required helpers:
+
+- Base64/data URL parsing.
+- MIME sniffing fallback.
+- Byte size validation.
+- Optional dimension parsing for PNG/JPEG/WebP.
+- Mask alpha validation for PNG.
+- Normalized conversion to:
+  - OpenAI multipart files.
+  - Gemini inline data.
+
+Do not write files. Return bytes.
+
+Recommended utility module:
+
+```ts
+decodeImageInput(input): NormalizedImageInput
+detectImageDimensions(bytes, mediaType): { width: number; height: number }
+assertMaskCompatible(image, mask): void
+toDataUrl(image): string
+```
+
+## 13. Output Handling
+
+Always return:
+
+- `Uint8Array` bytes.
+- `mediaType`.
+- `index`.
+- Optional width/height if detected.
+- Provider raw metadata behind `raw`.
+
+Do not return only base64. Apps can convert:
+
+```ts
+Buffer.from(image.data).toString('base64')
+```
+
+## 14. Cost And Usage
+
+Image pricing differs heavily by provider and model. Do not reuse text usage types.
+
+```ts
+interface ImageUsageMetrics {
+  inputTextTokens?: number;
+  inputImageTokens?: number;
+  outputImageTokens?: number;
+  outputImages?: number;
+  inputBytes?: number;
+  outputBytes?: number;
+  costUSD?: number;
+  cost?: string;
+  costBreakdown?: ImageCostLineItem[];
+  estimated: boolean;
+}
+
+interface ImageCostLineItem {
+  label: string;
+  unit:
+    | 'input_text_token'
+    | 'input_image_token'
+    | 'output_image_token'
+    | 'output_image'
+    | 'request';
+  quantity: number;
+  rateUSD: number;
+  amountUSD: number;
+  estimated: boolean;
+}
+```
+
+OpenAI cost model:
+
+- Cost can include input text tokens, input image tokens for edits, output image tokens, and streaming partial image tokens.
+- Mark cost as estimated unless OpenAI response metadata provides billable details.
+- Keep pricing in a registry that can be updated independently.
+
+Google cost model:
+
+- Google docs for `gemini-3.1-flash-image-preview` state generated images consume up to 2520 tokens per image.
+- For `gemini-3-pro-image-preview`, use provider usage metadata where available or a conservative estimate.
+- Treat cost as estimated unless provider usage metadata directly reports billable tokens.
+
+Production requirement:
+
+- Provide `modelRegistry.updatePrices()` or equivalent.
+- Do not hardcode prices as if permanent.
+- Store usage per request for billing attribution.
+
+## 15. Storage Design
+
+The library should not own storage.
+
+Recommended app-layer pattern:
+
+```ts
+interface ImageAssetStore {
+  put(asset: {
+    data: Uint8Array;
+    mediaType: string;
+    tenantId?: string;
+    userId?: string;
+    metadata: Record<string, unknown>;
+  }): Promise<{ url: string; key: string }>;
+}
+```
+
+Library can include optional adapters later:
+
+- S3/R2/GCS uploader helper.
+- Local filesystem helper for demos.
+- No storage in core v1.
+
+## 16. Error Taxonomy
+
+```ts
+class ImageLibraryError extends Error {}
+class ImageAuthenticationError extends ImageLibraryError {}
+class ImageProviderError extends ImageLibraryError {}
+class ImageRateLimitError extends ImageLibraryError {}
+class ImageSafetyError extends ImageLibraryError {}
+class ImageCapabilityError extends ImageLibraryError {}
+class ImageValidationError extends ImageLibraryError {}
+class ImageTimeoutError extends ImageLibraryError {}
+class ImageDecodeError extends ImageLibraryError {}
+class ImageFallbackExhaustedError extends ImageLibraryError {}
+```
+
+Error metadata:
+
+```ts
+{
+  provider,
+  model,
+  operation,
+  requestId,
+  statusCode,
+  retryable,
+  fallbackTrace,
+  safety,
+  details
+}
+```
+
+Error handling requirements:
+
+- Never include raw base64 or image bytes in error messages.
+- Include provider request ID when available.
+- Distinguish provider safety block from app validation failure.
+- Include actionable messages for unsupported model/operation combinations.
+- Preserve original provider error under redacted metadata for debugging.
+
+## 17. Retry, Timeout, And Idempotency
+
+Image generation can be slow and expensive.
+
+Defaults:
+
+- Per-request timeout: 120 seconds.
+- Retry only retryable provider/network errors.
+- Do not retry safety errors or validation errors.
+- Use exponential backoff with jitter.
+- Avoid automatic retries for expensive high-quality requests unless user opts in.
+- Add idempotency key support when provider supports it.
+
+## 18. Documentation And GitHub Pages
+
+This future project should publish complete public docs through GitHub Pages.
+
+Recommended docs stack:
+
+- VitePress for simple TypeScript library docs, or Docusaurus if versioned docs/blog are needed.
+- TypeDoc-generated API reference.
+- GitHub Actions workflow to build docs on every PR.
+- GitHub Pages deployment from Actions.
+- Dead-link checking in CI.
+
+Required docs pages:
+
+- Overview and architecture.
+- Installation.
+- Quickstart for OpenAI.
+- Quickstart for Google Gemini.
+- Environment variables and key setup.
+- `generate()` guide.
+- `edit()` guide.
+- `inpaint()` guide, clearly separating mask inpaint vs semantic inpaint.
+- Model comparison for the three supported models only.
+- Provider options, including moderation/safety controls and warnings.
+- Fallback and routing.
+- Error handling and troubleshooting.
+- Cost and usage tracking.
+- Storage guidance: where generated images are stored and why storage is app-owned.
+- Testing guide: unit tests, live tests, temp output folder, CI behavior.
+- Production checklist.
+- API reference.
+- Changelog and migration notes.
+
+Docs rules:
+
+- Do not publish API keys, generated private images, or raw prompts from user tests.
+- Every example must include safe defaults.
+- Every safety-control example must explicitly say it is provider-documented and app owners remain responsible for policy compliance.
+- Every inpaint example must state whether it uses pixel masks or semantic inpainting.
+
+## 19. Testing Strategy
+
+Unit tests:
+
+- Request translation for OpenAI `gpt-image-2`.
+- Request translation for Google `gemini-3-pro-image-preview`.
+- Request translation for Google `gemini-3.1-flash-image-preview`.
+- Response parsing for base64 and inline image outputs.
+- Multipart OpenAI edit and inpaint.
+- Gemini inline image input.
+- Unsupported operation errors.
+- Mask validation.
+- MIME/dimension parsing.
+- Cost estimation.
+- Safety option mapping.
+- Fallback routing.
+- Redaction of base64 in errors.
+
+Contract tests:
+
+- Each provider adapter must satisfy the same `ImageProviderAdapter` contract.
+- Mock fixtures should cover success, safety block, rate limit, invalid request, timeout, malformed response, and empty image output.
+
+Live tests:
+
+- Must be opt-in with `LIVE_IMAGE_TESTS=1`.
+- Use small/low-quality generation when possible.
+- Write generated outputs to an ignored temp folder.
+- Delete temp folder after success.
+- Keep provider keys in `.env`.
+- Record model, provider, request ID, latency, output count, and file sizes.
+
+Live test matrix:
+
+| Operation | `gpt-image-2` | `gemini-3-pro-image-preview` | `gemini-3.1-flash-image-preview` |
+|---|---:|---:|---:|
+| Text-to-image | Required | Required | Required |
+| Image edit | Required | Required | Required |
+| Mask inpaint | Required | Not supported, assert clear error | Not supported, assert clear error |
+| Semantic inpaint | Required | Required | Required |
+| Safety option mapping | Required | Required | Required |
+| Fallback | Required | Required | Required |
+
+CI:
+
+- Unit and contract tests by default.
+- Docs build by default.
+- API reference generation by default.
+- Live tests only in manual workflow or nightly budget-limited workflow.
+- Minimum coverage target: 90% lines/statements and 85% branches after v1 API stabilizes.
+
+## 20. Observability
+
+Expose:
+
+- request ID
+- provider
+- model
+- operation
+- latency
+- input count
+- output count
+- output bytes
+- image dimensions
+- cost estimate
+- safety status
+- fallback trace
+- retry count
+
+Logging interface:
+
+```ts
+interface ImageUsageLogger {
+  logImage(event: ImageUsageEvent): Promise<void> | void;
+}
+```
+
+Do not log:
+
+- raw image bytes
+- base64 image strings
+- full prompts by default
+
+## 21. Package Structure
+
+Recommended:
+
+```txt
+src/
+  client.ts
+  types.ts
+  errors.ts
+  models/
+    registry.ts
+    prices.ts
+  providers/
+    openai.ts
+    google-gemini.ts
+    mock.ts
+  utils/
+    image-input.ts
+    dimensions.ts
+    cost.ts
+    retry.ts
+    redaction.ts
+docs/
+  index.md
+  getting-started.md
+  guides/
+  api/
+test/
+  openai.adapter.test.ts
+  google-gemini.adapter.test.ts
+  client.test.ts
+  cost.test.ts
+  fallback.test.ts
+  safety.test.ts
+  image-input.test.ts
+  live/
+    run-live.mjs
+```
+
+Package exports:
+
+```json
+{
+  ".": "./dist/index.js",
+  "./client": "./dist/client.js",
+  "./models": "./dist/models.js",
+  "./providers/openai": "./dist/providers-openai.js",
+  "./providers/google": "./dist/providers-google.js",
+  "./utils": "./dist/utils.js"
+}
+```
+
+## 22. V1 Milestones
+
+### Milestone 1: Core API And Types
+
+- Add core types.
+- Add errors.
+- Add model registry with only the three supported models.
+- Add mock client.
+- Add utilities for image input normalization.
+
+Acceptance:
+
+- Typecheck passes.
+- Mock generate/edit/inpaint works.
+- Capability errors are clear.
+
+### Milestone 2: OpenAI Adapter
+
+- Implement `gpt-image-2` text-to-image.
+- Implement image edit.
+- Implement mask inpaint.
+- Parse base64 outputs.
+- Capture request IDs.
+- Map `moderation`.
+- Add unit tests with mocked fetch.
+
+Acceptance:
+
+- OpenAI unit tests pass.
+- One opt-in live generation, edit, and mask inpaint test pass.
+
+### Milestone 3: Google Gemini Adapter
+
+- Implement `gemini-3-pro-image-preview`.
+- Implement `gemini-3.1-flash-image-preview`.
+- Implement text-to-image.
+- Implement text+image editing.
+- Implement semantic inpaint.
+- Parse inline image outputs and text parts.
+- Map safety settings with explicit less-restrictive opt-in.
+
+Acceptance:
+
+- Gemini unit tests pass.
+- Opt-in live generation, edit, and semantic inpaint tests pass for both Google models.
+
+### Milestone 4: Fallback, Errors, And Observability
+
+- Implement fallback router.
+- Implement retry/timeout.
+- Implement typed errors.
+- Implement redaction.
+- Implement usage logging.
+- Implement cost estimates.
+
+Acceptance:
+
+- Fallback tests pass.
+- Safety errors are not retried or downgraded by default.
+- Error snapshots contain no base64/image bytes.
+
+### Milestone 5: Documentation And GitHub Pages
+
+- Add VitePress or Docusaurus.
+- Add TypeDoc.
+- Add docs pages listed in section 18.
+- Add GitHub Pages workflow.
+- Add docs build and dead-link check to CI.
+
+Acceptance:
+
+- Docs build locally.
+- API reference is generated.
+- GitHub Pages deploy workflow succeeds.
+
+### Milestone 6: Production Readiness
+
+- Live test runner.
+- Bundle size check.
+- Coverage thresholds.
+- Production checklist.
+- Release workflow.
+
+Acceptance:
+
+- `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, and docs build pass.
+- Live test matrix can run manually.
+- NPM package can be packed and consumed by a demo project.
+
+## 23. Key Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Preview model availability changes | Broken defaults | Static registry override, source URLs, live tests |
+| Pricing changes | Wrong cost estimates | Mark estimates, allow price overrides, avoid permanent hardcoded prices |
+| Mask semantics differ by provider | User confusion | Separate `mask` vs `semanticMask`, fail unsupported combinations |
+| Safety settings misunderstood as bypass | Compliance risk | Explicit docs, opt-in flags, audit metadata, no hidden relaxation |
+| Large image payloads | Memory pressure | Byte limits, app-owned storage, no default logging |
+| Safety/policy rejections | Production errors | Typed `ImageSafetyError`, expose provider details safely |
+| Image output count variability | Broken UI assumptions | Return array, do not promise exact `n` unless provider guarantees it |
+| Prompt revisions/provider text | Unexpected outputs | Surface `revisedPrompt` and `providerText` |
+| Provider mixed text+image responses | Parser bugs | Preserve text parts separately |
+| Legal rights to reference images | Product liability | Document app-level responsibility and consent flow |
+
+## 24. Recommended Initial Defaults
+
+```ts
+const defaults = {
+  openai: {
+    model: 'gpt-image-2',
+    quality: 'medium',
+    size: '1024x1024',
+    outputFormat: 'png',
+    safetyMode: 'default',
+  },
+  googlePro: {
+    model: 'gemini-3-pro-image-preview',
+    aspectRatio: '1:1',
+    responseModalities: ['IMAGE'],
+    safetyMode: 'default',
+  },
+  googleFlash: {
+    model: 'gemini-3.1-flash-image-preview',
+    aspectRatio: '1:1',
+    responseModalities: ['IMAGE'],
+    safetyMode: 'default',
+  },
+};
+```
+
+Default recommendation:
+
+- Use `gpt-image-2` when exact mask inpainting is required.
+- Use `gemini-3-pro-image-preview` for complex professional image generation/editing.
+- Use `gemini-3.1-flash-image-preview` for high-volume generation/editing and faster iteration.
+
+## 25. Open Questions Before Implementation
+
+- Should the package depend on official SDKs or use `fetch` only?
+- Should `Blob`/`File` support be browser-first, Node-first, or both?
+- Should dimension parsing be built-in or optional to keep bundle size down?
+- Should live tests save output images as GitHub Actions artifacts?
+- Should the library support multi-turn image editing in v1 or keep v1 stateless?
+- Should usage logging be part of core v1 or added after adapters stabilize?
+- Should OpenAI partial-image streaming ship in v1 or v2?
+- Will this package be server-only, or also safe for browser/edge use?
+
+## 26. Final Recommendation
+
+Build V1 as a stateless image client:
+
+1. Implement canonical `generate`, `edit`, and `inpaint`.
+2. Support only `gpt-image-2`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview`.
+3. Implement OpenAI first because it maps directly to generation/edit/mask inpaint.
+4. Implement Google second because it is powerful but semantically different, especially for inpainting.
+5. Keep storage, CDN, and image asset management outside the library.
+6. Expose documented safety/moderation controls as explicit provider options with audit metadata.
+7. Add capability-aware fallback and typed errors before public release.
+8. Publish complete GitHub Pages docs and require docs build in CI.
+9. Add live tests before publishing.
+
+The most important design principle is not to over-normalize. A useful image library should give one ergonomic surface while preserving the provider differences that matter: masks, semantic edits, reference-image fidelity, output formats, streaming, watermarking/content credentials, safety behavior, fallback behavior, and cost units.

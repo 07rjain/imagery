@@ -1,0 +1,71 @@
+{
+  "name": "@imagery/core",
+  "version": "0.1.0",
+  "description": "Provider-agnostic TypeScript image generation library for OpenAI GPT Image and Google Gemini image models.",
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@10.22.0",
+  "sideEffects": false,
+  "keywords": [
+    "image-generation",
+    "openai",
+    "gemini",
+    "typescript",
+    "inpainting",
+    "image-editing"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./models": {
+      "types": "./dist/models/index.d.ts",
+      "default": "./dist/models/index.js"
+    },
+    "./providers/openai": {
+      "types": "./dist/providers/openai.d.ts",
+      "default": "./dist/providers/openai.js"
+    },
+    "./providers/google": {
+      "types": "./dist/providers/google-gemini.d.ts",
+      "default": "./dist/providers/google-gemini.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:consumer": "pnpm build && node scripts/validate-consumer.mjs",
+    "test:live": "pnpm build && node test/live/run-live.mjs",
+    "docs:api": "typedoc",
+    "docs:build": "vitepress build docs",
+    "verify": "pnpm typecheck && pnpm test && pnpm test:consumer && pnpm docs:api && pnpm docs:build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@vitest/coverage-v8": "^1.6.0",
+    "typedoc": "^0.28.19",
+    "typescript": "^5.4.5",
+    "vitepress": "^1.2.3",
+    "vitest": "^1.6.0"
+  }
+}

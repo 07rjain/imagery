@@ -1,0 +1,126 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>@imagery/core</title><meta name="description" content="Documentation for @imagery/core"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script><script async src="assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="index.html" class="title">@imagery/core</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>@imagery/core</h1></div><div class="tsd-panel tsd-typography"><h1 id="imagery" class="tsd-anchor-link">Imagery<a href="#imagery" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>Imagery is a provider-agnostic TypeScript library for image generation, image editing, and inpainting across OpenAI GPT Image and Google Gemini image models.</p>
+<p>The v1 API is intentionally small and explicit:</p>
+<ul>
+<li><code>client.images.generate()</code> for text-to-image generation.</li>
+<li><code>client.images.edit()</code> for image-to-image editing with one or more reference images.</li>
+<li><code>client.images.inpaint()</code> for pixel-mask inpainting where supported, or semantic inpainting where supported.</li>
+</ul>
+<p>Provider differences are visible by design. OpenAI and Google do not expose the same capabilities, safety controls, cost units, or response metadata, and this library avoids hiding those differences behind a chat-style abstraction.</p>
+<h2 id="install" class="tsd-anchor-link">Install<a href="#install" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code class="sh"><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">add</span><span class="hl-1"> </span><span class="hl-2">@imagery/core</span>
+</code><button type="button">Copy</button></pre>
+
+<p>The package is ESM-first and requires Node.js 20 or newer.</p>
+<h2 id="quickstart" class="tsd-anchor-link">Quickstart<a href="#quickstart" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code class="ts"><span class="hl-3">import</span><span class="hl-1"> { </span><span class="hl-4">ImageClient</span><span class="hl-1"> } </span><span class="hl-3">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@imagery/core&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">client</span><span class="hl-1"> = </span><span class="hl-4">ImageClient</span><span class="hl-1">.</span><span class="hl-0">fromEnv</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">defaultProvider:</span><span class="hl-1"> </span><span class="hl-2">&#39;openai&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">defaultModel:</span><span class="hl-1"> </span><span class="hl-2">&#39;gpt-image-2&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">response</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">client</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">.</span><span class="hl-0">generate</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;A matte black water bottle on sandstone&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">size:</span><span class="hl-1"> </span><span class="hl-2">&#39;1024x1024&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">quality:</span><span class="hl-1"> </span><span class="hl-2">&#39;low&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">outputFormat:</span><span class="hl-1"> </span><span class="hl-2">&#39;png&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">image</span><span class="hl-1"> = </span><span class="hl-4">response</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">[</span><span class="hl-7">0</span><span class="hl-1">];</span>
+</code><button type="button">Copy</button></pre>
+
+<p><code>ImageClient.fromEnv()</code> reads these environment variables:</p>
+<pre><code class="sh"><span class="hl-4">OPENAI_API_KEY</span><span class="hl-1">=</span><br/><span class="hl-4">GEMINI_API_KEY</span><span class="hl-1">=</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Do not expose provider API keys in browser code. Use this package from trusted server, worker, or edge environments.</p>
+<h2 id="mock-provider" class="tsd-anchor-link">Mock Provider<a href="#mock-provider" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Use the built-in mock provider for tests and examples that should not call real APIs:</p>
+<pre><code class="ts"><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">client</span><span class="hl-1"> = </span><span class="hl-4">ImageClient</span><span class="hl-1">.</span><span class="hl-0">fromEnv</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">defaultProvider:</span><span class="hl-1"> </span><span class="hl-2">&#39;mock&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">defaultModel:</span><span class="hl-1"> </span><span class="hl-2">&#39;mock-image&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">response</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">client</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">.</span><span class="hl-0">generate</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;A local deterministic test image&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<h2 id="editing-with-multiple-images" class="tsd-anchor-link">Editing With Multiple Images<a href="#editing-with-multiple-images" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Both provider adapters support reference-image edits where the selected model supports them:</p>
+<pre><code class="ts"><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">edited</span><span class="hl-1"> = </span><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">client</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">.</span><span class="hl-0">edit</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">provider:</span><span class="hl-1"> </span><span class="hl-2">&#39;google&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">model:</span><span class="hl-1"> </span><span class="hl-2">&#39;gemini-3.1-flash-image-preview&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;Combine the product from the first image with the lighting from the second image.&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">inputImages:</span><span class="hl-1"> [</span><br/><span class="hl-1">    { </span><span class="hl-4">data:</span><span class="hl-1"> </span><span class="hl-4">firstImageBytes</span><span class="hl-1">, </span><span class="hl-4">mediaType:</span><span class="hl-1"> </span><span class="hl-2">&#39;image/png&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">    { </span><span class="hl-4">data:</span><span class="hl-1"> </span><span class="hl-4">secondImageBytes</span><span class="hl-1">, </span><span class="hl-4">mediaType:</span><span class="hl-1"> </span><span class="hl-2">&#39;image/jpeg&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">  ],</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<h2 id="inpainting" class="tsd-anchor-link">Inpainting<a href="#inpainting" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>OpenAI <code>gpt-image-2</code> supports pixel-mask inpainting:</p>
+<pre><code class="ts"><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">client</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">.</span><span class="hl-0">inpaint</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">provider:</span><span class="hl-1"> </span><span class="hl-2">&#39;openai&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">model:</span><span class="hl-1"> </span><span class="hl-2">&#39;gpt-image-2&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;Replace the sofa with a vintage leather chair.&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">image:</span><span class="hl-1"> { </span><span class="hl-4">data:</span><span class="hl-1"> </span><span class="hl-4">roomBytes</span><span class="hl-1">, </span><span class="hl-4">mediaType:</span><span class="hl-1"> </span><span class="hl-2">&#39;image/png&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">  </span><span class="hl-4">mask:</span><span class="hl-1"> { </span><span class="hl-4">data:</span><span class="hl-1"> </span><span class="hl-4">maskBytes</span><span class="hl-1">, </span><span class="hl-4">mediaType:</span><span class="hl-1"> </span><span class="hl-2">&#39;image/png&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Google Gemini image models support semantic inpainting in v1:</p>
+<pre><code class="ts"><span class="hl-3">await</span><span class="hl-1"> </span><span class="hl-4">client</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">.</span><span class="hl-0">inpaint</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-4">provider:</span><span class="hl-1"> </span><span class="hl-2">&#39;google&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">model:</span><span class="hl-1"> </span><span class="hl-2">&#39;gemini-3.1-flash-image-preview&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">prompt:</span><span class="hl-1"> </span><span class="hl-2">&#39;Edit the supplied product photo.&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-4">image:</span><span class="hl-1"> { </span><span class="hl-4">data:</span><span class="hl-1"> </span><span class="hl-4">productBytes</span><span class="hl-1">, </span><span class="hl-4">mediaType:</span><span class="hl-1"> </span><span class="hl-2">&#39;image/jpeg&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">  </span><span class="hl-4">semanticMask:</span><span class="hl-1"> </span><span class="hl-2">&#39;Change only the product color to navy blue.&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Passing a pixel mask to a Google model throws an <code>ImageCapabilityError</code>.</p>
+<h2 id="supported-v1-models" class="tsd-anchor-link">Supported V1 Models<a href="#supported-v1-models" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Model</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenAI</td>
+<td><code>gpt-image-2</code></td>
+<td>Generate, edit, pixel-mask inpaint, semantic inpaint</td>
+</tr>
+<tr>
+<td>Google Gemini API</td>
+<td><code>gemini-3-pro-image-preview</code></td>
+<td>Generate, edit, semantic inpaint</td>
+</tr>
+<tr>
+<td>Google Gemini API</td>
+<td><code>gemini-3.1-flash-image-preview</code></td>
+<td>Generate, edit, semantic inpaint</td>
+</tr>
+</tbody>
+</table>
+<p>Google support targets the Gemini API, not Google Cloud Vertex AI, Gemini Enterprise, or enterprise agent platform APIs.</p>
+<h2 id="safety-controls" class="tsd-anchor-link">Safety Controls<a href="#safety-controls" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Safety relaxation is never automatic.</p>
+<ul>
+<li>OpenAI <code>moderation: 'low'</code> must be set explicitly through <code>providerOptions.openai</code>.</li>
+<li>Google <code>OFF</code> and <code>BLOCK_NONE</code> safety thresholds require <code>allowLessRestrictiveSafetySettings: true</code>.</li>
+<li>Safety and validation errors are not retried.</li>
+<li>Fallback from a safety-blocked provider is disabled unless <code>fallback.onSafetyError</code> is explicitly enabled.</li>
+</ul>
+<h2 id="storage" class="tsd-anchor-link">Storage<a href="#storage" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>The library does not write generated images to durable storage. Responses contain bytes and metadata:</p>
+<pre><code class="ts"><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">bytes</span><span class="hl-1"> = </span><span class="hl-4">response</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">[</span><span class="hl-7">0</span><span class="hl-1">]?.</span><span class="hl-4">data</span><span class="hl-1">;</span><br/><span class="hl-5">const</span><span class="hl-1"> </span><span class="hl-6">mediaType</span><span class="hl-1"> = </span><span class="hl-4">response</span><span class="hl-1">.</span><span class="hl-4">images</span><span class="hl-1">[</span><span class="hl-7">0</span><span class="hl-1">]?.</span><span class="hl-4">mediaType</span><span class="hl-1">;</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Applications own storage, CDN upload, retention, and access control.</p>
+<h2 id="development" class="tsd-anchor-link">Development<a href="#development" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<pre><code class="sh"><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">install</span><br/><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">verify</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Useful commands:</p>
+<pre><code class="sh"><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">typecheck</span><br/><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">test</span><br/><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">test:consumer</span><br/><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">docs:api</span><br/><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">docs:build</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Live tests are opt in and make real provider calls:</p>
+<pre><code class="sh"><span class="hl-4">LIVE_IMAGE_TESTS</span><span class="hl-1">=</span><span class="hl-2">1</span><span class="hl-1"> </span><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">test:live</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Live outputs are written to <code>live-artifacts/</code>, which is ignored by git.</p>
+<h2 id="before-pushing" class="tsd-anchor-link">Before Pushing<a href="#before-pushing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Run:</p>
+<pre><code class="sh"><span class="hl-0">pnpm</span><span class="hl-1"> </span><span class="hl-2">verify</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Check that local credentials and generated artifacts are not staged:</p>
+<pre><code class="sh"><span class="hl-0">git</span><span class="hl-1"> </span><span class="hl-2">status</span><span class="hl-1"> </span><span class="hl-5">--short</span>
+</code><button type="button">Copy</button></pre>
+
+<p>The following paths should stay local-only:</p>
+<ul>
+<li><code>.env</code></li>
+<li><code>.env.*</code></li>
+<li><code>realtest/</code></li>
+<li><code>live-artifacts/</code></li>
+<li><code>node_modules/</code></li>
+<li><code>dist/</code></li>
+</ul>
+<h2 id="design-principles" class="tsd-anchor-link">Design Principles<a href="#design-principles" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ul>
+<li>Explicit image operations: <code>generate</code>, <code>edit</code>, and <code>inpaint</code>.</li>
+<li>Provider differences are preserved instead of hidden.</li>
+<li>Storage is app-owned; the library returns bytes and metadata.</li>
+<li>Safety relaxation is never automatic.</li>
+<li>Streaming is out of scope for v1.</li>
+<li>Core provider calls use <code>fetch</code> and Web APIs for Node and edge-compatible runtimes.</li>
+</ul>
+</div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#imagery"><span>Imagery</span></a><ul><li><a href="#install"><span>Install</span></a></li><li><a href="#quickstart"><span>Quickstart</span></a></li><li><a href="#mock-provider"><span>Mock <wbr/>Provider</span></a></li><li><a href="#editing-with-multiple-images"><span>Editing <wbr/>With <wbr/>Multiple <wbr/>Images</span></a></li><li><a href="#inpainting"><span>Inpainting</span></a></li><li><a href="#supported-v1-models"><span>Supported <wbr/>V1 <wbr/>Models</span></a></li><li><a href="#safety-controls"><span>Safety <wbr/>Controls</span></a></li><li><a href="#storage"><span>Storage</span></a></li><li><a href="#development"><span>Development</span></a></li><li><a href="#before-pushing"><span>Before <wbr/>Pushing</span></a></li><li><a href="#design-principles"><span>Design <wbr/>Principles</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">@imagery/core</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>
