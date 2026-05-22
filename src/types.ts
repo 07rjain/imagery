@@ -33,6 +33,7 @@ export interface ImageGenerateOptions {
   projectId?: string;
   fallback?: ImageFallbackOptions;
   providerOptions?: ImageProviderOptions;
+  onProgress?: (event: ImageProgressEvent) => void;
 }
 
 export interface ImageEditOptions extends Omit<ImageGenerateOptions, 'n'> {
@@ -190,6 +191,39 @@ export interface ImageUsageLogger {
   logImage(event: ImageUsageEvent): Promise<void> | void;
 }
 
+export type ImageProgressEvent =
+  | {
+      type: 'started';
+      provider: ImageProvider;
+      model: string;
+      operation: ImageOperation;
+    }
+  | {
+      type: 'retry';
+      attempt: number;
+      reason: string;
+    }
+  | {
+      type: 'fallback';
+      from: { provider: ImageProvider; model: string };
+      to: { provider: ImageProvider; model: string };
+      reason: string;
+    }
+  | {
+      type: 'provider-request';
+      provider: ImageProvider;
+      model: string;
+      operation: ImageOperation;
+      phase: 'upload' | 'processing';
+    }
+  | {
+      type: 'completed';
+      provider: ImageProvider;
+      model: string;
+      operation: ImageOperation;
+      latencyMs: number;
+    };
+
 export interface ImageClientOptions {
   defaultProvider?: ImageProvider;
   defaultModel?: string;
@@ -228,6 +262,13 @@ export interface ImageModelInfo {
   releaseStage?: 'preview' | 'stable';
   sourceUrl: string;
   lastUpdated: string;
+}
+
+export interface ImageModelSupportQuery {
+  provider?: ImageProvider;
+  operation?: ImageOperation;
+  maskType?: 'pixel' | 'semantic';
+  minInputImages?: number;
 }
 
 export interface ImagePricing {

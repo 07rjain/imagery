@@ -29,10 +29,40 @@ export function toDataUrl(image: NormalizedImageInput): string {
 }
 
 export async function assertMaskCompatible(image: ImageInput, mask: ImageInput): Promise<void> {
-  const normalizedImage = await decodeImageInput(image);
-  const normalizedMask = await decodeImageInput(mask);
+  await validateMaskForInpaint({ image, mask });
+}
+
+export async function validateMaskForInpaint(input: { image: ImageInput; mask: ImageInput }): Promise<void> {
+  const normalizedImage = await decodeImageInput(input.image);
+  const normalizedMask = await decodeImageInput(input.mask);
+  assertNormalizedMaskCompatible(normalizedImage, normalizedMask);
+}
+
+export async function prepareMaskForImage(input: {
+  baseImage: ImageInput;
+  maskImage: ImageInput;
+  resize?: 'exact' | 'fit';
+}): Promise<ImageInput> {
+  const normalizedImage = await decodeImageInput(input.baseImage);
+  const normalizedMask = await decodeImageInput(input.maskImage);
+  if (input.resize === 'fit') {
+    throw new ImageValidationError(
+      'Mask resizing is not built into core v1. Export masks at the base image dimensions or resize them in app code before calling prepareMaskForImage().',
+      { code: 'MASK_DIMENSION_MISMATCH' },
+    );
+  }
+  assertNormalizedMaskCompatible(normalizedImage, normalizedMask);
+  return {
+    data: normalizedMask.bytes,
+    mediaType: normalizedMask.mediaType,
+    filename: normalizedMask.filename,
+    role: 'mask',
+  };
+}
+
+function assertNormalizedMaskCompatible(normalizedImage: NormalizedImageInput, normalizedMask: NormalizedImageInput): void {
   if (normalizedMask.mediaType !== 'image/png') {
-    throw new ImageValidationError('Mask input must be image/png.');
+    throw new ImageValidationError('Mask input must be image/png.', { code: 'MASK_INVALID_MEDIA_TYPE' });
   }
   assertPngHasAlpha(normalizedMask.bytes);
   if (
@@ -42,7 +72,7 @@ export async function assertMaskCompatible(image: ImageInput, mask: ImageInput):
     normalizedMask.height &&
     (normalizedImage.width !== normalizedMask.width || normalizedImage.height !== normalizedMask.height)
   ) {
-    throw new ImageValidationError('Mask dimensions must match the base image dimensions.');
+    throw new ImageValidationError('Mask dimensions must match the base image dimensions.', { code: 'MASK_DIMENSION_MISMATCH' });
   }
 }
 

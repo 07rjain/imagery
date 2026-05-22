@@ -88,23 +88,37 @@ export class ImageClient {
     for (const candidate of candidates) {
       const attemptedAt = new Date().toISOString();
       try {
+        options.onProgress?.({ type: 'started', provider: candidate.provider, model: candidate.model, operation });
         this.validateCandidate(candidate.provider, candidate.model, operation, options);
         const adapter = this.requireAdapter(candidate.provider);
         const context = this.contextFor(candidate.provider, candidate.model);
+        options.onProgress?.({ type: 'provider-request', provider: candidate.provider, model: candidate.model, operation, phase: 'upload' });
         const result = await withRetry((signal) => this.callAdapter(adapter, operation, { ...options, signal } as any, context), {
           attempts: 2,
           timeoutMs: this.options.timeoutMs,
           signal: options.signal,
+          onRetry: (event) => options.onProgress?.({ type: 'retry', attempt: event.attempt, reason: event.reason }),
         });
+        options.onProgress?.({ type: 'provider-request', provider: candidate.provider, model: candidate.model, operation, phase: 'processing' });
         const response = { ...result.value, fallbackTrace };
         fallbackTrace.push({ provider: candidate.provider, model: candidate.model, attemptedAt, outcome: 'success' });
         await this.logUsage(response, started, result.retryCount);
+        options.onProgress?.({ type: 'completed', provider: candidate.provider, model: candidate.model, operation, latencyMs: Date.now() - started });
         return { ...response, fallbackTrace };
       } catch (error) {
         lastError = error;
         const trace = errorToTrace(candidate.provider, candidate.model, attemptedAt, error);
         fallbackTrace.push(trace);
         if (!shouldFallback(error, fallback)) break;
+        const next = candidates[fallbackTrace.length];
+        if (next) {
+          options.onProgress?.({
+            type: 'fallback',
+            from: { provider: candidate.provider, model: candidate.model },
+            to: next,
+            reason: error instanceof Error ? error.message : 'Unknown image error',
+          });
+        }
       }
     }
 
@@ -122,28 +136,28 @@ export class ImageClient {
 
   private validateCandidate(provider: ImageProvider, model: string, operation: ImageOperation, options: ImageGenerateOptions | ImageEditOptions | ImageInpaintOptions): void {
     const info = getImageModel(model);
-    if (!info) throw new ImageCapabilityError(`Unsupported image model: ${model}.`, { provider, model, operation });
-    if (info.provider !== provider) throw new ImageCapabilityError(`Model ${model} belongs to provider ${info.provider}, not ${provider}.`, { provider, model, operation });
-    if (!info.operations.includes(operation)) throw new ImageCapabilityError(`Model ${model} does not support ${operation}.`, { provider, model, operation });
+    if (!info) throw new ImageCapabilityError(`Unsupported image model: ${model}.`, { code: 'CAPABILITY_MODEL_UNSUPPORTED', provider, model, operation });
+    if (info.provider !== provider) throw new ImageCapabilityError(`Model ${model} belongs to provider ${info.provider}, not ${provider}.`, { code: 'CAPABILITY_PROVIDER_MISMATCH', provider, model, operation });
+    if (!info.operations.includes(operation)) throw new ImageCapabilityError(`Model ${model} does not support ${operation}.`, { code: 'CAPABILITY_OPERATION_UNSUPPORTED', provider, model, operation });
     if (options.background === 'transparent' && !info.supportsTransparentBackground) {
-      throw new ImageCapabilityError(`Model ${model} does not support transparent background.`, { provider, model, operation });
+      throw new ImageCapabilityError(`Model ${model} does not support transparent background.`, { code: 'CAPABILITY_TRANSPARENT_BACKGROUND_UNSUPPORTED', provider, model, operation });
     }
     if (operation === 'inpaint') {
       const inpaint = options as ImageInpaintOptions;
-      if (inpaint.mask && !info.supportsMasks) throw new ImageCapabilityError(`Model ${model} does not support pixel-mask inpainting.`, { provider, model, operation });
-      if (inpaint.semanticMask && !info.supportsSemanticInpaint) throw new ImageCapabilityError(`Model ${model} does not support semantic inpainting.`, { provider, model, operation });
+      if (inpaint.mask && !info.supportsMasks) throw new ImageCapabilityError(`Model ${model} does not support pixel-mask inpainting.`, { code: 'CAPABILITY_PIXEL_MASK_UNSUPPORTED', provider, model, operation });
+      if (inpaint.semanticMask && !info.supportsSemanticInpaint) throw new ImageCapabilityError(`Model ${model} does not support semantic inpainting.`, { code: 'CAPABILITY_SEMANTIC_INPAINT_UNSUPPORTED', provider, model, operation });
     }
     if (operation === 'edit') {
       const edit = options as ImageEditOptions;
       if (info.maxInputImages && edit.inputImages.length > info.maxInputImages) {
-        throw new ImageCapabilityError(`Model ${model} supports at most ${info.maxInputImages} input images.`, { provider, model, operation });
+        throw new ImageCapabilityError(`Model ${model} supports at most ${info.maxInputImages} input images.`, { code: 'CAPABILITY_OPERATION_UNSUPPORTED', provider, model, operation });
       }
     }
   }
 
   private requireAdapter(provider: ImageProvider): ImageProviderAdapter {
     const adapter = this.adapters.get(provider);
-    if (!adapter) throw new ImageCapabilityError(`No adapter is registered for provider ${provider}.`);
+    if (!adapter) throw new ImageCapabilityError(`No adapter is registered for provider ${provider}.`, { code: 'CAPABILITY_PROVIDER_MISMATCH', provider });
     return adapter;
   }
 
@@ -182,7 +196,7 @@ export class ImageClient {
 }
 
 function validatePrompt(prompt: string): void {
-  if (!prompt || prompt.trim().length === 0) throw new ImageValidationError('Image prompt is required.');
+  if (!prompt || prompt.trim().length === 0) throw new ImageValidationError('Image prompt is required.', { code: 'VALIDATION_FAILED' });
 }
 
 function defaultModelForProvider(provider: ImageProvider): string {

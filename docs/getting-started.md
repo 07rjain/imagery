@@ -1,5 +1,11 @@
 # Getting Started
 
+## Install
+
+```sh
+pnpm add @rishabhbothra/imagery
+```
+
 ```ts
 import { ImageClient } from '@rishabhbothra/imagery';
 

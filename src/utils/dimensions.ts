@@ -52,11 +52,11 @@ function readWebpDimensions(bytes: Uint8Array): ImageDimensions | undefined {
 
 export function assertPngHasAlpha(bytes: Uint8Array): void {
   if (bytes.length < 26 || ascii(bytes, 12, 4) !== 'IHDR') {
-    throw new ImageDecodeError('Mask must be a valid PNG image.');
+    throw new ImageDecodeError('Mask must be a valid PNG image.', { code: 'MASK_INVALID_MEDIA_TYPE' });
   }
   const colorType = bytes[25];
   if (colorType !== 4 && colorType !== 6) {
-    throw new ImageDecodeError('PNG mask must include an alpha channel.');
+    throw new ImageDecodeError('PNG mask must include an alpha channel.', { code: 'MASK_MISSING_ALPHA' });
   }
 }
 

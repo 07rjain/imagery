@@ -131,14 +131,14 @@ async function fetchImageUrl(fetchImpl: typeof fetch, url: unknown): Promise<Uin
 function throwOpenAIError(response: Response, body: any, requestId: string | undefined, model: string, operation: 'generate' | 'edit' | 'inpaint'): never {
   const message = body?.error?.message ?? `OpenAI image request failed with status ${response.status}.`;
   const metadata = { provider: 'openai' as const, model, operation, requestId, statusCode: response.status, details: body };
-  if (response.status === 401 || response.status === 403) throw new ImageAuthenticationError(message, metadata);
-  if (response.status === 429) throw new ImageRateLimitError(message, { ...metadata, retryable: true });
+  if (response.status === 401 || response.status === 403) throw new ImageAuthenticationError(message, { ...metadata, code: 'AUTHENTICATION_FAILED' });
+  if (response.status === 429) throw new ImageRateLimitError(message, { ...metadata, code: 'RATE_LIMITED', retryable: true });
   if (body?.error?.code === 'content_policy_violation') {
-    throw new ImageSafetyError(message, { ...metadata, retryable: false, safety: { blocked: true, providerReason: body.error.code } });
+    throw new ImageSafetyError(message, { ...metadata, code: 'SAFETY_BLOCKED', retryable: false, safety: { blocked: true, providerReason: body.error.code } });
   }
-  throw new ImageProviderError(message, { ...metadata, retryable: response.status >= 500 });
+  throw new ImageProviderError(message, { ...metadata, code: 'PROVIDER_ERROR', retryable: response.status >= 500 });
 }
 
 function requireApiKey(apiKey: string | undefined, provider: string): asserts apiKey is string {
-  if (!apiKey) throw new ImageAuthenticationError(`${provider} API key is required.`);
+  if (!apiKey) throw new ImageAuthenticationError(`${provider} API key is required.`, { code: 'AUTHENTICATION_FAILED' });
 }

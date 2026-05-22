@@ -1,13 +1,13 @@
 # Imagery
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/07rjain/imagery/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/07rjain/imagery/releases)
 [![CI](https://github.com/07rjain/imagery/actions/workflows/ci.yml/badge.svg)](https://github.com/07rjain/imagery/actions/workflows/ci.yml)
 [![Pages](https://github.com/07rjain/imagery/actions/workflows/pages.yml/badge.svg)](https://github.com/07rjain/imagery/actions/workflows/pages.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Imagery is a provider-agnostic TypeScript library for image generation, image editing, and inpainting across OpenAI GPT Image and Google Gemini image models.
 
-Current version: `0.1.0`
+Current version: `0.2.0`
 
 The v1 API is intentionally small and explicit:
 
@@ -152,6 +152,15 @@ const mediaType = response.images[0]?.mediaType;
 ```
 
 Applications own storage, CDN upload, retention, and access control.
+
+## Production Guides
+
+- [BYOK and multi-tenant clients](https://07rjain.github.io/imagery/guides/byok.html)
+- [Next.js long-running jobs](https://07rjain.github.io/imagery/guides/nextjs-jobs.html)
+- [Inpainting mask cookbook](https://07rjain.github.io/imagery/guides/mask-cookbook.html)
+- [Usage metrics and billing](https://07rjain.github.io/imagery/guides/usage-billing.html)
+- [Model capability discovery](https://07rjain.github.io/imagery/guides/model-discovery.html)
+- [Errors and progress callbacks](https://07rjain.github.io/imagery/guides/errors-progress.html)
 
 ## Development
 

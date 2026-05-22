@@ -1,6 +1,19 @@
 # Testing
 
-Default tests use mocked provider responses.
+Install the package:
+
+```sh
+pnpm add @rishabhbothra/imagery
+```
+
+Use the mock provider for deterministic tests that should not call real APIs.
+
+```ts
+const client = ImageClient.fromEnv({
+  defaultProvider: 'mock',
+  defaultModel: 'mock-image',
+});
+```
 
 Live tests are opt in:
 
@@ -8,4 +21,4 @@ Live tests are opt in:
 LIVE_IMAGE_TESTS=1 pnpm test:live
 ```
 
-Live test outputs are written to `live-artifacts/`. Local runs preserve artifacts for inspection. CI can upload artifacts with retention controls.
+Generated live-test artifacts are written to `live-artifacts/`, which is ignored by git.

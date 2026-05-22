@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertMaskCompatible, decodeImageInput, ImageValidationError } from '../src/index.js';
+import { assertMaskCompatible, decodeImageInput, ImageValidationError, prepareMaskForImage, validateMaskForInpaint } from '../src/index.js';
 
 const PNG_WITH_ALPHA = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -23,6 +23,21 @@ describe('image input utilities', () => {
         { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
         { data: PNG_WITH_ALPHA, mediaType: 'image/jpeg' },
       ),
-    ).rejects.toBeInstanceOf(ImageValidationError);
+    ).rejects.toMatchObject({ metadata: { code: 'MASK_INVALID_MEDIA_TYPE' } });
+  });
+
+  it('prepares compatible masks for inpaint calls', async () => {
+    await expect(
+      validateMaskForInpaint({
+        image: { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
+        mask: { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
+      }),
+    ).resolves.toBeUndefined();
+    const mask = await prepareMaskForImage({
+      baseImage: { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
+      maskImage: { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
+    });
+    expect(mask.role).toBe('mask');
+    expect(mask.mediaType).toBe('image/png');
   });
 });

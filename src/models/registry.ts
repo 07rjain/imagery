@@ -1,4 +1,4 @@
-import type { ImageModelInfo, ImageOperation, ImageProvider } from '../types.js';
+import type { ImageModelInfo, ImageModelSupportQuery, ImageOperation, ImageProvider } from '../types.js';
 
 export const IMAGE_MODELS: ImageModelInfo[] = [
   {
@@ -87,4 +87,19 @@ export function listImageModels(provider?: ImageProvider): ImageModelInfo[] {
 
 export function supportsOperation(model: string, operation: ImageOperation): boolean {
   return getImageModel(model)?.operations.includes(operation) ?? false;
+}
+
+export function getModelsSupporting(query: ImageModelSupportQuery): ImageModelInfo[] {
+  return IMAGE_MODELS.filter((model) => {
+    if (query.provider && model.provider !== query.provider) return false;
+    if (query.operation && !model.operations.includes(query.operation)) return false;
+    if (query.maskType === 'pixel' && !model.supportsMasks) return false;
+    if (query.maskType === 'semantic' && !model.supportsSemanticInpaint) return false;
+    if (query.minInputImages !== undefined) {
+      if (!model.supportsReferenceImages) return false;
+      if (query.minInputImages > 1 && !model.supportsMultipleReferenceImages) return false;
+      if (model.maxInputImages !== undefined && model.maxInputImages < query.minInputImages) return false;
+    }
+    return true;
+  });
 }

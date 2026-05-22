@@ -24,7 +24,7 @@ export class GoogleGeminiImageProvider implements ImageProviderAdapter {
   }
 
   async inpaint(options: ImageInpaintOptions, context: ProviderRequestContext): Promise<ImageResponse> {
-    if (options.mask) throw new ImageCapabilityError('Google Gemini image models do not support pixel-mask inpainting in v1.');
+    if (options.mask) throw new ImageCapabilityError('Google Gemini image models do not support pixel-mask inpainting in v1.', { code: 'CAPABILITY_PIXEL_MASK_UNSUPPORTED', provider: 'google', model: context.model, operation: 'inpaint' });
     const prompt = options.semanticMask ? `${options.prompt}\n\nEdit instruction: ${options.semanticMask}` : options.prompt;
     return callGemini({ ...options, prompt }, context, 'inpaint', [options.image]);
   }
@@ -99,6 +99,7 @@ async function parseGeminiResponse(response: Response, model: string, operation:
       model,
       operation,
       requestId,
+      code: 'SAFETY_BLOCKED',
       retryable: false,
       safety: { blocked: true, providerReason: body.promptFeedback.blockReason },
       details: body,
@@ -121,21 +122,21 @@ function validateSafetySettings(options: ImageGenerateOptions): void {
   const settings = options.providerOptions?.google?.safetySettings ?? [];
   const hasLessRestrictive = settings.some((setting) => setting.threshold === 'OFF' || setting.threshold === 'BLOCK_NONE');
   if (hasLessRestrictive && options.providerOptions?.google?.allowLessRestrictiveSafetySettings !== true) {
-    throw new ImageValidationError('Google OFF and BLOCK_NONE safety thresholds require allowLessRestrictiveSafetySettings: true.');
+    throw new ImageValidationError('Google OFF and BLOCK_NONE safety thresholds require allowLessRestrictiveSafetySettings: true.', { code: 'VALIDATION_FAILED' });
   }
 }
 
 function throwGeminiError(response: Response, body: any, requestId: string | undefined, model: string, operation: 'generate' | 'edit' | 'inpaint'): never {
   const message = body?.error?.message ?? `Google Gemini image request failed with status ${response.status}.`;
   const metadata = { provider: 'google' as const, model, operation, requestId, statusCode: response.status, details: body };
-  if (response.status === 401 || response.status === 403) throw new ImageAuthenticationError(message, metadata);
-  if (response.status === 429) throw new ImageRateLimitError(message, { ...metadata, retryable: true });
+  if (response.status === 401 || response.status === 403) throw new ImageAuthenticationError(message, { ...metadata, code: 'AUTHENTICATION_FAILED' });
+  if (response.status === 429) throw new ImageRateLimitError(message, { ...metadata, code: 'RATE_LIMITED', retryable: true });
   if (response.status === 400 && /safety|blocked/i.test(message)) {
-    throw new ImageSafetyError(message, { ...metadata, retryable: false, safety: { blocked: true, providerReason: message } });
+    throw new ImageSafetyError(message, { ...metadata, code: 'SAFETY_BLOCKED', retryable: false, safety: { blocked: true, providerReason: message } });
   }
-  throw new ImageProviderError(message, { ...metadata, retryable: response.status >= 500 });
+  throw new ImageProviderError(message, { ...metadata, code: 'PROVIDER_ERROR', retryable: response.status >= 500 });
 }
 
 function requireApiKey(apiKey: string | undefined): asserts apiKey is string {
-  if (!apiKey) throw new ImageAuthenticationError('Google Gemini API key is required.');
+  if (!apiKey) throw new ImageAuthenticationError('Google Gemini API key is required. Set GEMINI_API_KEY or pass apiKeys.google to ImageClient.', { code: 'AUTHENTICATION_FAILED' });
 }

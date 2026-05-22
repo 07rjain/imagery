@@ -12,6 +12,9 @@ describe('ImageClient', () => {
   it('rejects unsupported transparent background before provider call', async () => {
     const client = new ImageClient({ defaultProvider: 'openai', defaultModel: 'gpt-image-2' });
     await expect(client.images.generate({ prompt: 'x', background: 'transparent' })).rejects.toBeInstanceOf(ImageCapabilityError);
+    await expect(client.images.generate({ prompt: 'x', background: 'transparent' })).rejects.toMatchObject({
+      metadata: { code: 'CAPABILITY_TRANSPARENT_BACKGROUND_UNSUPPORTED' },
+    });
   });
 
   it('does not fallback from safety errors unless explicitly enabled', async () => {
@@ -54,5 +57,15 @@ describe('ImageClient', () => {
     const response = await client.images.generate({ prompt: 'blocked' });
     expect(response.provider).toBe('mock');
     expect(response.fallbackTrace?.some((trace) => trace.errorType === 'ImageSafetyError')).toBe(true);
+  });
+
+  it('emits progress events for successful operations', async () => {
+    const events: string[] = [];
+    const client = new ImageClient({ defaultProvider: 'mock', defaultModel: 'mock-image' });
+    await client.images.generate({
+      prompt: 'test image',
+      onProgress: (event) => events.push(event.type),
+    });
+    expect(events).toEqual(['started', 'provider-request', 'provider-request', 'completed']);
   });
 });

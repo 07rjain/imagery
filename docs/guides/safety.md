@@ -1,7 +1,14 @@
 # Safety
 
-Provider safety and moderation controls are explicit. The library never relaxes safety settings automatically.
+Install the package:
 
-Safety-blocked requests are not retried. The client also never falls back from a safety-blocked provider unless `fallback.onSafetyError` is explicitly enabled.
+```sh
+pnpm add @rishabhbothra/imagery
+```
 
-Google `OFF` and `BLOCK_NONE` thresholds require `allowLessRestrictiveSafetySettings: true`.
+Safety relaxation is never automatic.
+
+- OpenAI `moderation: 'low'` must be explicit.
+- Google `OFF` and `BLOCK_NONE` require `allowLessRestrictiveSafetySettings: true`.
+- Safety and validation errors are not retried.
+- Fallback from a safety-blocked provider requires `fallback.onSafetyError: true`.

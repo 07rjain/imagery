@@ -4,6 +4,7 @@ export interface RetryOptions {
   attempts: number;
   timeoutMs: number;
   signal?: AbortSignal;
+  onRetry?: (event: { attempt: number; reason: string }) => void;
 }
 
 export async function withRetry<T>(operation: (signal: AbortSignal) => Promise<T>, options: RetryOptions): Promise<{ value: T; retryCount: number }> {
@@ -23,6 +24,7 @@ export async function withRetry<T>(operation: (signal: AbortSignal) => Promise<T
     } catch (error) {
       lastError = controllerAbortError(error) ? new ImageTimeoutError('Image request timed out.', { retryable: true }) : error;
       if (!isRetryableImageError(lastError) || attempt === options.attempts - 1) break;
+      options.onRetry?.({ attempt: attempt + 1, reason: lastError instanceof Error ? lastError.message : 'Unknown retryable image error' });
       await delay(50 * 2 ** attempt);
     }
   }
