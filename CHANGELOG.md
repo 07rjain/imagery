@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Added configurable `retryAttempts`.
+- Added total-operation `deadlineMs` alongside per-attempt `timeoutMs`.
+- Added retry progress events with cumulative `elapsedMs`.
+- Documented timeout budget math for long-running image jobs.
+
 ## 0.2.0
 
 - Added stable `ImageErrorCode` metadata for library errors.

@@ -24,6 +24,7 @@ import type {
 import { withRetry } from './utils/retry.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_RETRY_ATTEMPTS = 2;
 
 export class ImageClient {
   readonly images: {
@@ -32,12 +33,13 @@ export class ImageClient {
     inpaint: (options: ImageInpaintOptions) => Promise<ImageResponse>;
   };
 
-  private readonly options: Required<Pick<ImageClientOptions, 'timeoutMs' | 'fetch'>> & ImageClientOptions;
+  private readonly options: Required<Pick<ImageClientOptions, 'timeoutMs' | 'fetch' | 'retryAttempts'>> & ImageClientOptions;
   private readonly adapters: Map<ImageProvider, ImageProviderAdapter>;
 
   constructor(options: ImageClientOptions = {}) {
     this.options = {
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      retryAttempts: options.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS,
       fetch: options.fetch ?? globalThis.fetch,
       ...options,
     };
@@ -94,10 +96,11 @@ export class ImageClient {
         const context = this.contextFor(candidate.provider, candidate.model);
         options.onProgress?.({ type: 'provider-request', provider: candidate.provider, model: candidate.model, operation, phase: 'upload' });
         const result = await withRetry((signal) => this.callAdapter(adapter, operation, { ...options, signal } as any, context), {
-          attempts: 2,
-          timeoutMs: this.options.timeoutMs,
+          attempts: options.retryAttempts ?? this.options.retryAttempts,
+          timeoutMs: options.timeoutMs ?? this.options.timeoutMs,
+          deadlineMs: options.deadlineMs ?? this.options.deadlineMs,
           signal: options.signal,
-          onRetry: (event) => options.onProgress?.({ type: 'retry', attempt: event.attempt, reason: event.reason }),
+          onRetry: (event) => options.onProgress?.({ type: 'retry', attempt: event.attempt, reason: event.reason, elapsedMs: event.elapsedMs }),
         });
         options.onProgress?.({ type: 'provider-request', provider: candidate.provider, model: candidate.model, operation, phase: 'processing' });
         const response = { ...result.value, fallbackTrace };

@@ -44,3 +44,13 @@ await client.images.edit({
 ```
 
 Events include `started`, `provider-request`, `retry`, `fallback`, and `completed`.
+
+Retry events include cumulative elapsed time:
+
+```ts
+onProgress(event) {
+  if (event.type === 'retry') {
+    console.log(event.attempt, event.elapsedMs, event.reason);
+  }
+}
+```

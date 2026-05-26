@@ -28,6 +28,9 @@ export interface ImageGenerateOptions {
   seed?: number;
   safetyMode?: SafetyMode;
   signal?: AbortSignal;
+  timeoutMs?: number;
+  deadlineMs?: number;
+  retryAttempts?: number;
   tenantId?: string;
   userId?: string;
   projectId?: string;
@@ -202,6 +205,7 @@ export type ImageProgressEvent =
       type: 'retry';
       attempt: number;
       reason: string;
+      elapsedMs: number;
     }
   | {
       type: 'fallback';
@@ -228,6 +232,8 @@ export interface ImageClientOptions {
   defaultProvider?: ImageProvider;
   defaultModel?: string;
   timeoutMs?: number;
+  deadlineMs?: number;
+  retryAttempts?: number;
   fallback?: ImageFallbackOptions;
   fetch?: typeof fetch;
   usageLogger?: ImageUsageLogger;

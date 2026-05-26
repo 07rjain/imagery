@@ -38,3 +38,47 @@ export async function POST(request: Request) {
 Use synchronous handlers for internal tools and low-latency generation. Use background jobs for public SaaS edits, multi-image edits, and inpainting.
 
 Configure `timeoutMs` and pass `AbortSignal` from your job system when cancellation should stop provider work.
+
+## Timeout Budgets
+
+Imagery separates per-attempt timeout from the total operation deadline:
+
+```ts
+const client = ImageClient.fromEnv({
+  timeoutMs: 60_000,      // one provider attempt
+  deadlineMs: 90_000,     // total budget across retries
+  retryAttempts: 1,       // no automatic retry for user-facing routes
+});
+```
+
+Request options can override client defaults:
+
+```ts
+await client.images.inpaint({
+  prompt,
+  image,
+  mask,
+  timeoutMs: 75_000,
+  deadlineMs: 90_000,
+  retryAttempts: 1,
+  onProgress(event) {
+    if (event.type === 'retry') {
+      console.log(`retry ${event.attempt} after ${event.elapsedMs}ms`);
+    }
+  },
+});
+```
+
+Worst-case latency is approximately:
+
+```txt
+min(deadlineMs, retryAttempts * timeoutMs + retry backoff)
+```
+
+For public UX, prefer a deadline that matches the UI promise. For background workers, use a longer deadline and persist progress to your job table.
+
+Timeout naming:
+
+- `timeoutMs`: maximum time for one provider request attempt, including upload, provider processing, and response download.
+- `deadlineMs`: maximum total time for the library operation across retries for one provider candidate.
+- `retryAttempts`: maximum attempts for retryable provider/network/timeout failures. Safety and validation errors are not retried.

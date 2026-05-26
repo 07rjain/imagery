@@ -1,6 +1,6 @@
 {
   "name": "@rishabhbothra/imagery",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Provider-agnostic TypeScript image generation library for OpenAI GPT Image and Google Gemini image models.",
   "type": "module",
   "license": "MIT",

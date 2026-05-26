@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ImageClient, ImageCapabilityError, ImageSafetyError } from '../src/index.js';
+import { ImageClient, ImageCapabilityError, ImageSafetyError, ImageTimeoutError } from '../src/index.js';
 
 describe('ImageClient', () => {
   it('generates through the mock provider', async () => {
@@ -67,5 +67,49 @@ describe('ImageClient', () => {
       onProgress: (event) => events.push(event.type),
     });
     expect(events).toEqual(['started', 'provider-request', 'provider-request', 'completed']);
+  });
+
+  it('honors configurable retry attempts', async () => {
+    let calls = 0;
+    const fetch = async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: { message: 'temporary failure' } }), { status: 500 });
+    };
+    const client = new ImageClient({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-image-2',
+      apiKeys: { openai: 'test' },
+      fetch,
+      retryAttempts: 1,
+    });
+    await expect(client.images.generate({ prompt: 'x' })).rejects.toMatchObject({ metadata: { code: 'PROVIDER_ERROR' } });
+    expect(calls).toBe(1);
+  });
+
+  it('honors overall deadlines and reports elapsed retry progress', async () => {
+    const elapsed: number[] = [];
+    const fetch = async (_url: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+      });
+    const client = new ImageClient({
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-image-2',
+      apiKeys: { openai: 'test' },
+      fetch: fetch as typeof fetch,
+      timeoutMs: 10,
+      deadlineMs: 25,
+      retryAttempts: 3,
+    });
+    await expect(
+      client.images.generate({
+        prompt: 'x',
+        onProgress: (event) => {
+          if (event.type === 'retry') elapsed.push(event.elapsedMs);
+        },
+      }),
+    ).rejects.toBeInstanceOf(ImageTimeoutError);
+    expect(elapsed.length).toBeLessThanOrEqual(1);
+    expect(elapsed.every((value) => value >= 0)).toBe(true);
   });
 });
