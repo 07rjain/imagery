@@ -6,6 +6,7 @@ const PNG_WITH_ALPHA = Uint8Array.from([
   0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
   0x08, 0x06, 0x00, 0x00, 0x00,
 ]);
+const JPEG_BYTES = Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]);
 
 describe('image input utilities', () => {
   it('decodes base64 data URLs', async () => {
@@ -24,6 +25,15 @@ describe('image input utilities', () => {
         { data: PNG_WITH_ALPHA, mediaType: 'image/jpeg' },
       ),
     ).rejects.toMatchObject({ metadata: { code: 'MASK_INVALID_MEDIA_TYPE' } });
+  });
+
+  it('requires mask format to match the base image format', async () => {
+    await expect(
+      assertMaskCompatible(
+        { data: JPEG_BYTES, mediaType: 'image/jpeg' },
+        { data: PNG_WITH_ALPHA, mediaType: 'image/png' },
+      ),
+    ).rejects.toMatchObject({ metadata: { code: 'MASK_FORMAT_MISMATCH' } });
   });
 
   it('prepares compatible masks for inpaint calls', async () => {

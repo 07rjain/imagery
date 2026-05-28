@@ -64,6 +64,9 @@ function assertNormalizedMaskCompatible(normalizedImage: NormalizedImageInput, n
   if (normalizedMask.mediaType !== 'image/png') {
     throw new ImageValidationError('Mask input must be image/png.', { code: 'MASK_INVALID_MEDIA_TYPE' });
   }
+  if (normalizedImage.mediaType !== normalizedMask.mediaType) {
+    throw new ImageValidationError('Mask format must match the base image format.', { code: 'MASK_FORMAT_MISMATCH' });
+  }
   assertPngHasAlpha(normalizedMask.bytes);
   if (
     normalizedImage.width &&

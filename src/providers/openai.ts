@@ -57,7 +57,7 @@ export class OpenAIImageProvider implements ImageProviderAdapter {
   async inpaint(options: ImageInpaintOptions, context: ProviderRequestContext): Promise<ImageResponse> {
     requireApiKey(context.apiKey, 'OpenAI');
     if (options.mask) await assertMaskCompatible(options.image, options.mask);
-    const form = await baseEditForm(options, context.model);
+    const form = await baseEditForm(withSemanticMaskPrompt(options), context.model);
     await appendImage(form, 'image', options.image);
     if (options.mask) await appendImage(form, 'mask', options.mask);
     const response = await context.fetch(OPENAI_IMAGES_EDIT_URL, {
@@ -68,6 +68,14 @@ export class OpenAIImageProvider implements ImageProviderAdapter {
     });
     return parseOpenAIResponse(response, context.model, 'inpaint', context.fetch);
   }
+}
+
+function withSemanticMaskPrompt(options: ImageInpaintOptions): ImageInpaintOptions {
+  if (!options.semanticMask) return options;
+  return {
+    ...options,
+    prompt: `${options.prompt}\n\nEdit instruction: ${options.semanticMask}`,
+  };
 }
 
 async function baseEditForm(options: ImageGenerateOptions, model: string): Promise<FormData> {

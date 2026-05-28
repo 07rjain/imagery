@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed OpenAI inpaint requests so `semanticMask` is included as an edit instruction.
+- Added stricter mask validation for image/mask format mismatches.
+- Added adapter coverage for OpenAI mask inpaint and Gemini semantic inpaint request translation.
+
 ## 0.3.0
 
 - Added configurable `retryAttempts`.
